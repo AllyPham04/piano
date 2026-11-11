@@ -1,0 +1,21 @@
+# Smoke test: 2 validation excerpts, 100 optimisation steps, CPU, a few minutes.
+# Only the keys that differ from default.yaml are listed. Outputs go to *_smoke
+# folders so a smoke run never mixes with real results.
+inherit: default.yaml
+
+paths:
+  outputs_dir: outputs_smoke
+  results_dir: results_smoke
+  figures_dir: figures_smoke
+
+fit:
+  stage1_steps: 30
+  stage2_steps: 70
+  device: cpu
+
+run:
+  manifest: val            # never the test manifest
+  max_excerpts: 2
+
+eval:
+  bootstrap_n: 200

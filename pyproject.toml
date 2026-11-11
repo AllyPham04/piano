@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pianoabs"
+version = "0.1.0"
+description = "Label-free piano transcription via differentiable analysis-by-synthesis"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT (code); data under their own licences, see README §13" }
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+    "pyyaml>=6.0",
+    "tqdm>=4.65",
+    "soundfile>=0.12",
+    "librosa>=0.10",
+    "pretty_midi>=0.2.10",
+    "mir_eval>=0.7",
+    "torch>=2.1",
+]
+
+[project.optional-dependencies]
+# C3 real audio from the Hugging Face mirror (README §5.2)
+real = ["datasets>=2.18", "huggingface_hub>=0.20"]
+# Supervised piano baseline (README §4). Basic Pitch is installed separately
+# because it may pull in TensorFlow (see M6).
+bytedance = ["piano_transcription_inference>=0.0.5"]
+dev = ["pytest>=7.4"]
+
+[project.scripts]
+pianoabs = "pianoabs.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "slow: longer tests (optimisation runs); deselect with -m 'not slow'",
+    "network: tests that need internet access",
+]

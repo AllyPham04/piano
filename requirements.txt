@@ -1,0 +1,25 @@
+# Core dependencies (mirrors pyproject.toml). Install with:
+#   pip install -r requirements.txt && pip install -e . --no-deps
+# On Kaggle, torch is preinstalled with CUDA; pip will keep it.
+# Locally (CPU only), install torch first:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+numpy>=1.24
+scipy>=1.10
+pandas>=2.0
+matplotlib>=3.7
+pyyaml>=6.0
+tqdm>=4.65
+soundfile>=0.12
+librosa>=0.10
+pretty_midi>=0.2.10
+mir_eval>=0.7
+torch>=2.1
+pytest>=7.4
+
+# C3 (Hugging Face mirror)
+datasets>=2.18
+huggingface_hub>=0.20
+
+# System packages (not pip): fluidsynth, fluid-soundfont-gm, ffmpeg
+#   Kaggle/Debian: apt-get install -y fluidsynth fluid-soundfont-gm ffmpeg
+#   Windows (local): conda install -c conda-forge fluidsynth ffmpeg

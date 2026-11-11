@@ -1,0 +1,46 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+.conda/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Data: only small CSVs (manifests, ground truth) are committed ---
+data/raw/
+data/audio/
+data/soundfonts/
+data/hf_cache/
+data/sanity/
+
+# --- Run outputs (large / regenerable) ---
+outputs/
+outputs_smoke/
+results_smoke/
+figures_smoke/
+
+# --- Large binary files anywhere ---
+*.wav
+*.flac
+*.mp3
+*.npy
+*.npz
+*.sf2
+*.zip
+*.parquet
+*.pt
+*.pth
+
+# A few short, attributed example clips are allowed (README §8.5)
+!examples/*.wav
