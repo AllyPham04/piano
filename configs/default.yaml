@@ -94,7 +94,7 @@ fit:
 c0:
   tau_s: 1.5               # A_gt = (v/127) * exp(-(t - onset)/tau) while the note sounds
   beta: 1.0e-4             # constant noise floor in the synthetic spectrogram
-  amplitude: null          # overall scale; set in M3 from typical C1 magnitudes
+  amplitude: 0.09          # overall scale: median C1/C0 level ratio on validation (scripts/calibrate_c0_amplitude.py)
 
 # ---------------------------------------------------------------- notes (§3.5)
 notes:
