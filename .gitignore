@@ -20,6 +20,7 @@ Thumbs.db
 # --- Data: only small CSVs (manifests, ground truth) are committed ---
 data/raw/
 data/audio/
+data/excerpt_midi/
 data/soundfonts/
 data/hf_cache/
 data/sanity/

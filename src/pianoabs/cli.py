@@ -38,6 +38,39 @@ def cmd_info(cfg: dict, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_prepare_data(cfg: dict, args: argparse.Namespace) -> int:
+    """Download MIDI, freeze/verify manifests, build GT, render the requested conditions."""
+    from pianoabs.data.prepare import prepare_data
+
+    write_run_info(cfg, command="prepare-data")
+    max_excerpts = args.max_excerpts if args.max_excerpts is not None else cfg["run"]["max_excerpts"]
+    status = prepare_data(cfg, args.manifests, args.conditions, max_excerpts,
+                          verify=not args.no_verify)
+    for which, s in status.items():
+        print(f"manifest {which}: {s}")
+    return 0
+
+
+def cmd_sanity_plot(cfg: dict, args: argparse.Namespace) -> int:
+    """GT over spectrogram for one excerpt (README §11, Day 1 check)."""
+    from pianoabs import paths
+    from pianoabs.audio import load_mono
+    from pianoabs.data.groundtruth import read_notes_csv
+    from pianoabs.viz.plots import plot_gt_over_spectrogram
+
+    sr = cfg["data"]["sample_rate"]
+    kind = cfg["conditions"][args.condition]["gt"]
+    audio = load_mono(paths.audio_path(cfg, args.condition, args.excerpt), sr)
+    gt = read_notes_csv(paths.gt_path(cfg, kind, args.excerpt))
+    out = paths.figures_dir(cfg) / "sanity" / f"gt_over_spec_{args.condition}_{args.excerpt}.png"
+    plot_gt_over_spectrogram(audio, sr, gt, out,
+                             title=f"{args.excerpt} ({args.condition}): {kind} GT over |STFT| 4096",
+                             hop=cfg["features"]["hop"], gamma=cfg["features"]["gamma"],
+                             excerpt_s=cfg["data"]["excerpt_s"])
+    print(f"wrote {out}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="pianoabs", description=__doc__.split("\n")[0])
     common = argparse.ArgumentParser(add_help=False)
@@ -51,7 +84,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("prepare-data", parents=[common],
                        help="download MIDI, sample excerpts, build GT, render C1/C2")
-    p.set_defaults(func=_not_implemented("M2"))
+    p.add_argument("--manifests", nargs="+", default=["val", "test"], choices=["val", "test"])
+    p.add_argument("--conditions", nargs="*", default=["C1"], choices=["C1", "C2"],
+                   help="FluidSynth conditions to render (none: GT and MIDI only)")
+    p.add_argument("--max-excerpts", type=int, default=None,
+                   help="only build files for the first N excerpts (default: run.max_excerpts)")
+    p.add_argument("--no-verify", action="store_true",
+                   help="skip re-sampling to verify existing (frozen) manifests")
+    p.set_defaults(func=cmd_prepare_data)
+
+    p = sub.add_parser("sanity-plot", parents=[common], help="GT over spectrogram for one excerpt")
+    p.add_argument("--excerpt", default="val_000")
+    p.add_argument("--condition", default="C1")
+    p.set_defaults(func=cmd_sanity_plot)
 
     p = sub.add_parser("fetch-real", parents=[common], help="C3 audio from the HF mirror")
     p.set_defaults(func=_not_implemented("M7"))
