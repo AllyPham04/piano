@@ -25,8 +25,9 @@ def test_default_matches_readme(default_cfg):
     assert (m["pitch_min"], m["pitch_max"], m["k_max"]) == (21, 108, 40)
     assert m["B_clamp"] == [1.0e-6, 5.0e-2] and math.isclose(m["B_init"], 3e-4)
     assert (fit["stage1_steps"], fit["stage2_steps"]) == (300, 1200)
-    assert (fit["lambda_sp"], fit["lambda_tv"], fit["lambda_B"]) == (1e-2, 1e-3, 1e-3)
-    assert (fit["lr_Z"], fit["lr_physical"]) == (0.05, 0.01)
+    # lambda_sp and lr_physical were selected on validation (README defaults: 1e-2, 1e-2)
+    assert (fit["lambda_sp"], fit["lambda_tv"], fit["lambda_B"]) == (0.0, 1e-3, 1e-3)
+    assert (fit["lr_Z"], fit["lr_physical"]) == (0.05, 1e-3)
     s = default_cfg["data"]["sampling"]["manifests"]
     assert s["test"] == {"split": "test", "n_excerpts": 30, "seed": 0}
     assert s["val"] == {"split": "validation", "n_excerpts": 6, "seed": 1}
@@ -67,7 +68,7 @@ def test_set_overrides_parse_yaml_values(default_cfg):
                                                        "features.n_ffts=[2048]"]))
     assert cfg["fit"]["lambda_sp"] == 0.1
     assert cfg["features"]["n_ffts"] == [2048]
-    assert default_cfg["fit"]["lambda_sp"] == 1e-2  # original untouched
+    assert default_cfg["fit"]["lambda_sp"] == 0.0  # original untouched
 
 
 def test_unknown_override_key_fails(default_cfg):

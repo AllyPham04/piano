@@ -81,14 +81,18 @@ model:
 
 # ---------------------------------------------------------------- fit (§3.3–3.4)
 fit:
-  lambda_sp: 1.0e-2        # may be updated once from A3 on validation (decision B5), before any test run
+  # Selected on C1 validation before any test run (decision B5, Kaggle sweep 2026-11-12):
+  # lr_physical 1e-3 beat 1e-2 at every lambda_sp (+0.08..0.11 F1); at lr 1e-3, lambda_sp in
+  # {0, 1e-3, 1e-2, 1e-1} gave 0.5684 / 0.5679 / 0.5674 / 0.5678 (no measurable effect), 1 gave 0.5358.
+  # README defaults were lambda_sp 1e-2 and lr_physical 1e-2.
+  lambda_sp: 0.0
   lambda_tv: 1.0e-3
   lambda_B: 1.0e-3
   stage1_steps: 300        # Z and beta only
   stage2_steps: 1200       # + delta, a, c
   lr_Z: 0.05
   lr_beta: 0.05
-  lr_physical: 0.01
+  lr_physical: 1.0e-3      # README: 0.01 (see selection note above)
   cosine_decay: true       # applied during stage 2 to all parameter groups
   device: auto             # auto | cpu | cuda
 
