@@ -51,6 +51,34 @@ def cmd_prepare_data(cfg: dict, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_fetch_real(cfg: dict, args: argparse.Namespace) -> int:
+    """C3: match the HF mirror to MAESTRO by MIDI md5, stream and crop the test excerpts."""
+    import pandas as pd
+
+    from pianoabs import paths
+    from pianoabs.data.hf_real_audio import fetch_excerpts, index_mirror, local_midi_md5
+    from pianoabs.data.maestro import ensure_maestro
+    from pianoabs.data.sampling import load_manifest
+
+    write_run_info(cfg, command="fetch-real")
+    meta, midi_root = ensure_maestro(cfg)
+    index_path = paths.data_dir(cfg) / "hf_mirror_index.csv"
+    if index_path.exists():
+        index = pd.read_csv(index_path)
+    else:
+        index = index_mirror(cfg, local_midi_md5(meta, midi_root))
+        index.to_csv(index_path, index=False)
+    print(f"mirror rows matched by md5: {index['midi_filename'].notna().sum()} / {len(index)}")
+    manifest = load_manifest(paths.manifest_path(cfg, "test"), args.max_excerpts)
+    status = fetch_excerpts(cfg, index, manifest)
+    for eid in manifest["excerpt_id"]:
+        print(f"  {eid}: {status.get(eid, '?')}")
+    missing = [e for e, s in status.items() if s == "not in mirror"]
+    if missing:
+        print(f"WARNING: {len(missing)} excerpts not in the mirror: {missing}")
+    return 0
+
+
 def cmd_sanity_plot(cfg: dict, args: argparse.Namespace) -> int:
     """GT over spectrogram for one excerpt (README §11, Day 1 check)."""
     from pianoabs import paths
@@ -159,7 +187,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_sanity_plot)
 
     p = sub.add_parser("fetch-real", parents=[common], help="C3 audio from the HF mirror")
-    p.set_defaults(func=_not_implemented("M7"))
+    p.add_argument("--max-excerpts", type=int, default=None,
+                   help="only the first N test excerpts (default: all 30)")
+    p.set_defaults(func=cmd_fetch_real)
 
     p = sub.add_parser("tune", parents=[common], help="tune note thresholds on validation")
     p.add_argument("--method", default="ours")
