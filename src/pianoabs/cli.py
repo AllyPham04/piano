@@ -76,6 +76,9 @@ def cmd_tune(cfg: dict, args: argparse.Namespace) -> int:
     from pianoabs.experiments import tune_thresholds
 
     variant = _variant_for(args)
+    if args.method in ("basic_pitch", "bytedance_hr"):
+        print(f"{args.method} has no thresholds to tune (default settings, README §4)")
+        return 0
     write_run_info(cfg, command=f"tune {args.method}/{variant}/{args.condition}")
     res = tune_thresholds(cfg, args.method, variant, args.condition,
                           cfg["run"]["max_excerpts"])
@@ -100,7 +103,8 @@ def cmd_run(cfg: dict, args: argparse.Namespace) -> int:
     write_run_info(cfg, command=f"run {args.method}/{variant}/{args.condition}/{which}")
     n = run_method(cfg, args.method, variant, args.condition, which, max_excerpts)
     scores = evaluate_cell(cfg, args.method, variant, args.condition, which, max_excerpts)
-    print(f"wrote {n} new prediction files")
+    if n >= 0:
+        print(f"wrote {n} new prediction files")
     cols = ["excerpt_id", "onset_P", "onset_R", "onset_F1", "frame_F1", "n_ref", "n_pred"]
     print(scores[cols].round(4).to_string(index=False))
     print(f"mean onset F1 ({args.method}/{variant}/{args.condition}, {which}, "

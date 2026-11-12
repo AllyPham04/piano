@@ -37,12 +37,13 @@ from pianoabs import paths
 from pianoabs.audio import load_mono
 from pianoabs.baselines.nmf import kl_divergence, kl_nmf_activations, nmf_dictionary
 from pianoabs.config import variant_config
-from pianoabs.data.groundtruth import read_notes_csv, write_notes_csv
+from pianoabs.data.groundtruth import read_notes_csv
 from pianoabs.data.sampling import load_manifest
 from pianoabs.eval.metrics import crop_predictions, excerpt_metrics, onset_prf
 from pianoabs.model.c0 import synthesize_c0
 from pianoabs.model.fit import audio_targets, fit_excerpt
-from pianoabs.model.notes import extract_with_config, notes_to_midi, threshold_grid
+from pianoabs.model.notes import extract_with_config, threshold_grid
+from pianoabs.predictions import is_up_to_date, write_prediction
 from pianoabs.utils import resolve_device
 
 ACTIVATION_METHODS = ("ours", "nmf_harmonic", "nmf_inharmonic")
@@ -209,16 +210,6 @@ def load_thresholds(cfg: dict, method: str, variant: str, condition: str) -> dic
 
 # ---------------------------------------------------------------- predictions
 
-def write_prediction(cfg: dict, method: str, variant: str, condition: str, excerpt_id: str,
-                     notes: pd.DataFrame, runtime_s: float, device: str, extra: dict | None = None) -> None:
-    """Note CSV + MIDI + a small JSON with runtime and device (used by ``evaluate``)."""
-    csv = paths.prediction_path(cfg, method, variant, condition, excerpt_id, ".csv")
-    write_notes_csv(notes, csv)
-    notes_to_midi(notes, csv.with_suffix(".mid"))
-    csv.with_suffix(".json").write_text(json.dumps(
-        {"runtime_s": runtime_s, "device": device, **(extra or {})}), encoding="utf-8")
-
-
 def predict_manifest(cfg: dict, method: str, variant: str, condition: str, which: str,
                      max_excerpts: int | None = None, force: bool = False) -> int:
     """Predictions of an activation method from saved activations + tuned thresholds."""
@@ -236,9 +227,7 @@ def predict_manifest(cfg: dict, method: str, variant: str, condition: str, which
     written = 0
     for eid in manifest_for(cfg, which, max_excerpts)["excerpt_id"]:
         csv = paths.prediction_path(cfg, method, variant, condition, eid, ".csv")
-        meta = _read_json(csv.with_suffix(".json"))
-        if (csv.exists() and not force and meta is not None
-                and all(meta.get(k) == v for k, v in setting.items())):
+        if not force and is_up_to_date(csv, setting):
             continue
         notes = extract_with_config(load_activations(cfg, method, variant, condition, eid), cfg,
                                     thr["theta_on"], thr["theta_rise"], thr["reonset_rise_ratio"])
@@ -249,11 +238,55 @@ def predict_manifest(cfg: dict, method: str, variant: str, condition: str, which
     return written
 
 
+def run_bytedance(cfg: dict, condition: str, which: str, max_excerpts: int | None = None) -> int:
+    """ByteDance predictions for a manifest (model loaded once)."""
+    import importlib.metadata
+
+    from pianoabs.baselines.bytedance_runner import BytedanceTranscriber
+
+    setting = {"method": "bytedance_hr",
+               "package_version": importlib.metadata.version("piano_transcription_inference"),
+               "apply_predicted_pedal": cfg["baselines"]["bytedance"]["apply_predicted_pedal"]}
+    todo = [eid for eid in manifest_for(cfg, which, max_excerpts)["excerpt_id"]
+            if not is_up_to_date(paths.prediction_path(cfg, "bytedance_hr", "default", condition,
+                                                        eid, ".csv"), setting)]
+    if not todo:
+        return 0
+    device = resolve_device(cfg["fit"]["device"])
+    transcriber = BytedanceTranscriber(cfg, device)
+    for eid in tqdm(todo, desc=f"bytedance_hr/{condition}/{which} [{device}]"):
+        audio = load_mono(paths.audio_path(cfg, condition, eid), cfg["data"]["sample_rate"])
+        notes, runtime = transcriber.transcribe(audio)
+        write_prediction(cfg, "bytedance_hr", "default", condition, eid, notes, runtime,
+                         device, setting)
+    return len(todo)
+
+
+def run_basic_pitch(cfg: dict, condition: str, which: str, max_excerpts: int | None = None) -> int:
+    """Basic Pitch in its own interpreter (``baselines.basic_pitch.python``) to keep
+    TensorFlow away from PyTorch; it writes predictions in the common format."""
+    import subprocess
+    import sys
+
+    python = cfg["baselines"]["basic_pitch"]["python"] or sys.executable
+    cmd = [python, "-m", "pianoabs.baselines.basic_pitch_runner", "--config", cfg["config_path"],
+           "--condition", condition, "--manifest", which]
+    if max_excerpts:
+        cmd += ["--set", f"run.max_excerpts={max_excerpts}"]
+    subprocess.run(cmd, check=True)
+    return -1  # count printed by the subprocess
+
+
+NOTE_METHODS = {"bytedance_hr": run_bytedance, "basic_pitch": run_basic_pitch}
+
+
 def run_method(cfg: dict, method: str, variant: str, condition: str, which: str,
                max_excerpts: int | None = None) -> int:
-    """Activations (if needed) + predictions for one cell of the experiment grid."""
+    """Predictions for one cell of the experiment grid (activations first, if needed)."""
+    if method in NOTE_METHODS:
+        return NOTE_METHODS[method](cfg, condition, which, max_excerpts)
     if method not in ACTIVATION_METHODS:
-        raise ValueError(f"'{method}' is not an activation method (baselines: M6)")
+        raise ValueError(f"unknown method '{method}'")
     activations_for_manifest(cfg, method, variant, condition, which, max_excerpts)
     return predict_manifest(cfg, method, variant, condition, which, max_excerpts)
 

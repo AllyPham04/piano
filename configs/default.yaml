@@ -123,6 +123,15 @@ nmf:
   n_iter: 200
   eps: 1.0e-10
 
+# ---------------------------------------------------------------- supervised baselines (§4)
+baselines:
+  bytedance:
+    checkpoint_url: https://zenodo.org/record/4034264/files/CRNN_note_F1%3D0.9677_pedal_F1%3D0.9186.pth?download=1
+    checkpoint_path: data/checkpoints/bytedance_note_F1=0.9677_pedal_F1=0.9186.pth
+    apply_predicted_pedal: true   # GT is pedal-extended; only offsets change
+  basic_pitch:
+    python: null                  # interpreter of the isolated Basic Pitch environment (null: same)
+
 # ---------------------------------------------------------------- evaluation (§6)
 eval:
   onset_tolerance: 0.05
