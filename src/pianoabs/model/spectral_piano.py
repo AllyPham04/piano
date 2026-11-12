@@ -5,9 +5,16 @@ latent piano roll and a handful of physical parameters:
 
 .. math::
 
-    \hat S_r(f, t) = \sum_p W_{p,r}(f)\, A_{p,t} + \beta_r(f), \qquad A = \mathrm{softplus}(Z)
+    \hat S_r(f, t) = s \sum_p W_{p,r}(f)\, A_{p,t} + \beta_r(f), \qquad A = \mathrm{softplus}(Z)
 
 Keys p = 21..108 (88 keys), u = (p - 60) / 24.
+
+s is a fixed, per-excerpt **amplitude scale** (the 99.9th percentile of the
+target |S| at n_fft = 2048, set before fitting). It makes A dimensionless
+(about 1 for the loudest notes), so the sparsity weight λ_sp, the initial
+value A = 1e-3 and the thresholds mean the same thing for every excerpt.
+Without it, A is in raw magnitude units (~1e-3 on average) and the README's
+λ_sp values have no measurable effect (found on C1 validation, 2026-11-12).
 
 * **Fundamental** (global tuning δ and optional per-key detune δ_p, both in cents):
   f0_p = 440 · 2^((p-69)/12) · 2^((δ + δ_p)/1200),   δ_p = 20 · tanh(raw_p)
@@ -70,6 +77,8 @@ class SpectralPiano(nn.Module):
         self.B_mode, self.B_clamp = B_mode, tuple(B_clamp)
         self.per_key_detune, self.max_detune_cents = per_key_detune, max_detune_cents
 
+        # Fixed amplitude scale s (see module docstring); fit_excerpt sets it per excerpt.
+        self.register_buffer("amplitude_scale", torch.tensor(1.0))
         pitches = torch.arange(pitch_min, pitch_max + 1, dtype=torch.float32)
         self.register_buffer("pitches", pitches)
         self.register_buffer("u", (pitches - 60.0) / 24.0)
@@ -201,14 +210,14 @@ class SpectralPiano(nn.Module):
 
     def spectrogram(self, n_fft: int, A: torch.Tensor | None = None,
                     W: torch.Tensor | None = None) -> torch.Tensor:
-        """Ŝ_r = W_rᵀ A + β_r, shape (F_r, T).
+        """Ŝ_r = s · W_rᵀ A + β_r, shape (F_r, T).
 
         ``A`` defaults to softplus(Z); ``W`` defaults to freshly built templates
         (pass precomputed ones when the physical parameters are frozen).
         """
         A = self.activations() if A is None else A
         W = self.templates(n_fft) if W is None else W
-        return W.T @ A + self.noise_floor(n_fft)[:, None]
+        return self.amplitude_scale * (W.T @ A) + self.noise_floor(n_fft)[:, None]
 
     def forward(self, A: torch.Tensor | None = None,
                 templates: dict[int, torch.Tensor] | None = None) -> dict[int, torch.Tensor]:
@@ -227,6 +236,7 @@ class SpectralPiano(nn.Module):
         """JSON-friendly summary of the fitted physical parameters."""
         with torch.no_grad():
             return {
+                "amplitude_scale": float(self.amplitude_scale),
                 "delta_cents": float(self.delta),
                 "a": [float(x) for x in self.a],
                 "c": [float(x) for x in self.c],
@@ -250,6 +260,7 @@ class SpectralPiano(nn.Module):
         with torch.no_grad():
             model.Z.copy_(torch.as_tensor(
                 np.log(np.expm1(np.clip(activations, 1e-12, None))), dtype=torch.float32))
+            model.amplitude_scale.fill_(params.get("amplitude_scale", 1.0))
             model.delta.fill_(params["delta_cents"])
             model.a.copy_(torch.tensor(params["a"]))
             model.c.copy_(torch.tensor(params["c"]))

@@ -45,12 +45,27 @@ class FitResult:
     runtime_s: float = 0.0
     device: str = "cpu"
     model: SpectralPiano | None = None
+    snapshots: dict[int, np.ndarray] = field(default_factory=dict)  # step -> activations
 
 
 def audio_targets(audio: np.ndarray, cfg: dict, device: str) -> dict[int, torch.Tensor]:
     """Target magnitude spectrograms of an audio excerpt at every resolution."""
     f = cfg["features"]
     return multires_stft(audio, f["n_ffts"], f["hop"], f["normalize"], device=device)
+
+
+def amplitude_scale(targets: dict[int, torch.Tensor], cfg: dict) -> float:
+    """Per-excerpt amplitude scale s: a high quantile of the target |S| (README §3.2 note).
+
+    Uses the resolution ``model.amplitude_scale_n_fft`` if it is fitted, else the
+    first available one; ``amplitude_scale_quantile: null`` disables scaling (s = 1).
+    """
+    m = cfg["model"]
+    q = m["amplitude_scale_quantile"]
+    if q is None:
+        return 1.0
+    ref = targets.get(m["amplitude_scale_n_fft"], next(iter(targets.values())))
+    return max(float(torch.quantile(ref.detach().flatten().float().cpu(), q)), 1e-8)
 
 
 def loss_bin_masks(cfg: dict, n_ffts: list[int], device: str) -> dict[int, torch.Tensor]:
@@ -87,12 +102,22 @@ def _set_lr(optimizer: torch.optim.Optimizer, base_lrs: list[float], factor: flo
 
 
 def fit_excerpt(targets: dict[int, torch.Tensor], cfg: dict, device: str = "cpu",
-                keep_model: bool = False) -> FitResult:
-    """Fit the spectral piano model to one excerpt's target spectrograms."""
+                keep_model: bool = False, snapshot_steps: tuple[int, ...] = ()) -> FitResult:
+    """Fit the spectral piano model to one excerpt's target spectrograms.
+
+    ``snapshot_steps``: optional step numbers (1-based count of completed steps)
+    at which a copy of the activations is kept, for diagnostics.
+    """
+    snapshots: dict[int, np.ndarray] = {}
+
+    def maybe_snapshot(done: int) -> None:
+        if done in snapshot_steps:
+            snapshots[done] = model.activations().detach().cpu().numpy().astype(np.float32)
     seed_everything(cfg["seed"])
     fit = cfg["fit"]
     n_frames = next(iter(targets.values())).shape[1]
     model = SpectralPiano.from_config(cfg, n_frames).to(device)
+    model.amplitude_scale.fill_(amplitude_scale(targets, cfg))
     gamma = cfg["features"]["gamma"]
     targets_c = {n: compress(targets[n].to(device), gamma) for n in model.n_ffts}
     masks = loss_bin_masks(cfg, list(model.n_ffts), device)
@@ -117,6 +142,7 @@ def fit_excerpt(targets: dict[int, torch.Tensor], cfg: dict, device: str = "cpu"
         terms["total"].backward()
         optimizer.step()
         log(step, 1, terms)
+        maybe_snapshot(step + 1)
 
     # ---- stage 2: + physical parameters, cosine-decayed learning rates
     physical = model.physical_parameters()
@@ -132,6 +158,7 @@ def fit_excerpt(targets: dict[int, torch.Tensor], cfg: dict, device: str = "cpu"
         terms["total"].backward()
         optimizer.step()
         log(fit["stage1_steps"] + i, 2, terms)
+        maybe_snapshot(fit["stage1_steps"] + i + 1)
 
     if device.startswith("cuda"):
         torch.cuda.synchronize()
@@ -139,4 +166,4 @@ def fit_excerpt(targets: dict[int, torch.Tensor], cfg: dict, device: str = "cpu"
     return FitResult(
         activations=model.activations().detach().cpu().numpy().astype(np.float32),
         params=model.physical_params(), loss_history=history, runtime_s=runtime,
-        device=device, model=model if keep_model else None)
+        device=device, model=model if keep_model else None, snapshots=snapshots)

@@ -78,9 +78,9 @@ def test_normalise_by_percentile():
 def test_threshold_grid():
     from pianoabs.config import load_config
     grid = threshold_grid(load_config("configs/default.yaml"))
-    assert len(grid) == 5 * 3 * 4
+    assert len(grid) == 10 * 5 * 4
     assert grid[0] == (0.1, 0.0, 1.0)      # strictest re-onset ratio first (wins ties)
-    assert grid[-1] == (0.5, 0.05, 0.1)
+    assert grid[-1] == (1.0, 0.2, 0.1)
 
 
 def test_notes_to_midi_roundtrip(tmp_path):
@@ -92,7 +92,8 @@ def test_notes_to_midi_roundtrip(tmp_path):
 
 # ---------------------------------------------------------------- optimiser
 
-def tiny_cfg(default_cfg, stage1=20, stage2=20):
+def tiny_cfg(default_cfg, stage1=160, stage2=20):
+    """~180 steps: with the amplitude scale, A must climb from 1e-3 to ~1 (Z: -6.9 -> ~0.5)."""
     cfg = copy.deepcopy(default_cfg)
     cfg["fit"].update(stage1_steps=stage1, stage2_steps=stage2)
     cfg["data"].update(excerpt_s=0.8, tail_s=0.2)          # 1 s -> T = 63 frames
@@ -111,7 +112,7 @@ def test_fit_reduces_loss_and_is_deterministic(default_cfg):
     r1 = fit_excerpt(targets, cfg)
     r2 = fit_excerpt(targets, cfg)
     losses = [h["total"] for h in r1.loss_history]
-    assert len(losses) == 40 and losses[-1] < 0.5 * losses[0]
+    assert len(losses) == 180 and losses[-1] < 0.5 * losses[0]
     assert r1.activations.shape == (88, 63)
     np.testing.assert_array_equal(r1.activations, r2.activations)
 
@@ -131,6 +132,55 @@ def test_B0_variant_keeps_B_zero(default_cfg):
     cfg = variant_config(tiny_cfg(default_cfg, 5, 10), "B0")
     params = fit_excerpt(tiny_targets(cfg), cfg).params
     assert max(params["B_per_key"]) == 0.0
+
+
+def test_amplitude_scale_makes_activations_dimensionless(default_cfg):
+    cfg = tiny_cfg(default_cfg)
+    targets = tiny_targets(cfg)
+    res = fit_excerpt(targets, cfg)
+    expected = torch.quantile(targets[2048].flatten(), 0.999).item()
+    assert res.params["amplitude_scale"] == pytest.approx(expected, rel=1e-5)
+    # loud notes now have A of order 1, not of order the raw magnitude (~0.1)
+    assert res.activations.max() > 0.3
+    cfg_off = copy.deepcopy(cfg)
+    cfg_off["model"]["amplitude_scale_quantile"] = None
+    assert fit_excerpt(targets, cfg_off).params["amplitude_scale"] == 1.0
+
+
+def test_outputs_recomputed_when_config_changes(default_cfg, tmp_path):
+    """Idempotent skip only for matching fingerprints; stale thresholds are refused."""
+    from pianoabs import paths
+    from pianoabs.experiments import (activation_fingerprint, compute_activations,
+                                      predict_manifest, tune_thresholds)
+
+    cfg = copy.deepcopy(default_cfg)
+    cfg["paths"].update(outputs_dir=str(tmp_path / "out"), results_dir=str(tmp_path / "res"))
+    cfg["fit"].update(stage1_steps=3, stage2_steps=3)
+    assert compute_activations(cfg, "ours", "full", "C0", "val_004", "cpu") is True
+    assert compute_activations(cfg, "ours", "full", "C0", "val_004", "cpu") is False  # skipped
+    assert activation_fingerprint(cfg, "ours", "full") != activation_fingerprint(cfg, "ours", "B0")
+
+    cfg["notes"].update(theta_on_grid=[0.3], theta_rise_grid=[0.0], reonset_rise_ratio_grid=[1.0])
+    cfg["run"]["max_excerpts"] = 1
+    import pandas as pd
+    manifest = pd.read_csv("data/manifests/excerpts_val.csv")
+    single = tmp_path / "m.csv"
+    manifest[manifest.excerpt_id == "val_004"].to_csv(single, index=False)
+    cfg["paths"]["data_dir"] = "data"
+    import pianoabs.experiments as ex
+    original = ex.manifest_for
+    ex.manifest_for = lambda c, w, m=None: pd.read_csv(single)
+    try:
+        tune_thresholds(cfg, "ours", "full", "C0")
+        assert predict_manifest(cfg, "ours", "full", "C0", "val") == 1
+        assert predict_manifest(cfg, "ours", "full", "C0", "val") == 0   # up to date
+        cfg["fit"]["stage2_steps"] = 4                                  # config change
+        with pytest.raises(RuntimeError):
+            predict_manifest(cfg, "ours", "full", "C0", "val")          # stale thresholds
+        assert compute_activations(cfg, "ours", "full", "C0", "val_004", "cpu") is True
+    finally:
+        ex.manifest_for = original
+    assert paths.prediction_path(cfg, "ours", "full", "C0", "val_004").exists()
 
 
 @pytest.mark.slow

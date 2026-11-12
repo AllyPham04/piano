@@ -9,8 +9,12 @@ Two kinds of methods:
 * **note methods** (``basic_pitch``, ``bytedance_hr``; M6) write note lists
   directly.
 
-Everything is **idempotent**: an excerpt whose output files exist is skipped,
-so an interrupted Kaggle session can simply re-run the same cell.
+Everything is **idempotent**: an excerpt whose outputs exist *and were made with
+the same configuration* is skipped, so an interrupted Kaggle session can simply
+re-run the same cell. Each output stores a fingerprint (hash of the settings
+that affect it, plus ``MODEL_VERSION``); outputs with a different fingerprint
+are recomputed, and thresholds tuned for other activations are refused. This
+prevents silently reusing stale results after a config or model change.
 
 Threshold tuning rules (README §3.5, agreed decision B4): tuned on validation
 only, per (method, variant, condition); C3 has no validation audio (the HF
@@ -19,6 +23,7 @@ mirror is test-only), so C3 reuses the thresholds tuned on C1.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from pathlib import Path
@@ -41,6 +46,8 @@ from pianoabs.model.notes import extract_with_config, notes_to_midi, threshold_g
 from pianoabs.utils import resolve_device
 
 ACTIVATION_METHODS = ("ours", "nmf_harmonic", "nmf_inharmonic")
+# Bump when code changes alter activations (2: amplitude scale s, 2026-11-12).
+MODEL_VERSION = 2
 TUNING_CONDITION = {"C3": "C1"}  # conditions without validation audio borrow thresholds
 METRICS_COLUMNS = [
     "excerpt_id", "condition", "method", "variant", "onset_P", "onset_R", "onset_F1",
@@ -73,6 +80,25 @@ def activation_key(method: str, variant: str) -> str:
     return variant if method == "ours" else method
 
 
+def activation_fingerprint(cfg: dict, method: str, variant: str) -> str:
+    """Short hash of every setting that changes a method's activations."""
+    vcfg = variant_config(cfg, variant) if method == "ours" else cfg
+    relevant = {
+        "version": MODEL_VERSION, "method": method, "seed": vcfg["seed"],
+        "data": {k: vcfg["data"][k] for k in ("sample_rate", "excerpt_s", "tail_s", "peak_norm")},
+        "features": vcfg["features"], "model": vcfg["model"], "c0": vcfg["c0"],
+    }
+    if method == "ours":
+        relevant["fit"] = {k: v for k, v in vcfg["fit"].items() if k != "device"}
+    else:
+        relevant["nmf"] = vcfg["nmf"]
+    return hashlib.sha1(json.dumps(relevant, sort_keys=True).encode()).hexdigest()[:12]
+
+
+def _read_json(path: Path) -> dict | None:
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
 # ---------------------------------------------------------------- activations
 
 def _save_activations(cfg: dict, key: str, condition: str, excerpt_id: str,
@@ -89,11 +115,13 @@ def compute_activations(cfg: dict, method: str, variant: str, condition: str,
                         excerpt_id: str, device: str, force: bool = False) -> bool:
     """Compute and save activations + parameters of one excerpt. Returns True if it ran."""
     key = activation_key(method, variant)
-    if (paths.activation_path(cfg, key, condition, excerpt_id).exists()
-            and paths.params_path(cfg, key, condition, excerpt_id).exists() and not force):
+    fingerprint = activation_fingerprint(cfg, method, variant)
+    saved = _read_json(paths.params_path(cfg, key, condition, excerpt_id))
+    if (not force and saved is not None and saved.get("fingerprint") == fingerprint
+            and paths.activation_path(cfg, key, condition, excerpt_id).exists()):
         return False
     base = {"excerpt_id": excerpt_id, "condition": condition, "method": method,
-            "variant": variant, "seed": cfg["seed"]}
+            "variant": variant, "seed": cfg["seed"], "fingerprint": fingerprint}
     if method == "ours":
         vcfg = variant_config(cfg, variant)
         result = fit_excerpt(load_targets(vcfg, condition, excerpt_id, device), vcfg, device)
@@ -162,6 +190,7 @@ def tune_thresholds(cfg: dict, method: str, variant: str, condition: str,
                      "reonset_rise_ratio": ratio, "mean_onset_F1": float(np.mean(f1s))})
     best = max(grid, key=lambda g: g["mean_onset_F1"])  # first maximum in grid order
     result = {"method": method, "variant": variant, "condition": condition,
+              "fingerprint": activation_fingerprint(cfg, method, variant),
               "tuned_on": "val", "excerpts": list(manifest["excerpt_id"]),
               "theta_on": best["theta_on"], "theta_rise": best["theta_rise"],
               "reonset_rise_ratio": best["reonset_rise_ratio"],
@@ -197,19 +226,25 @@ def predict_manifest(cfg: dict, method: str, variant: str, condition: str, which
     if thr is None:
         raise FileNotFoundError(f"no tuned thresholds for {method}/{variant}/{condition}; "
                                 "run 'tune' first")
+    fingerprint = activation_fingerprint(cfg, method, variant)
+    if thr.get("fingerprint") != fingerprint:
+        raise RuntimeError(f"thresholds for {method}/{variant} were tuned on activations from "
+                           "a different configuration; re-run 'tune' first")
+    setting = {"activation_fingerprint": fingerprint, "theta_on": thr["theta_on"],
+               "theta_rise": thr["theta_rise"], "reonset_rise_ratio": thr["reonset_rise_ratio"],
+               "thresholds_from": thr["condition"]}
     written = 0
     for eid in manifest_for(cfg, which, max_excerpts)["excerpt_id"]:
         csv = paths.prediction_path(cfg, method, variant, condition, eid, ".csv")
-        if csv.exists() and not force:
+        meta = _read_json(csv.with_suffix(".json"))
+        if (csv.exists() and not force and meta is not None
+                and all(meta.get(k) == v for k, v in setting.items())):
             continue
         notes = extract_with_config(load_activations(cfg, method, variant, condition, eid), cfg,
                                     thr["theta_on"], thr["theta_rise"], thr["reonset_rise_ratio"])
         info = load_params(cfg, method, variant, condition, eid)
         write_prediction(cfg, method, variant, condition, eid, notes, info["runtime_s"],
-                         info["device"], {"theta_on": thr["theta_on"],
-                                          "theta_rise": thr["theta_rise"],
-                                          "reonset_rise_ratio": thr["reonset_rise_ratio"],
-                                          "thresholds_from": thr["condition"]})
+                         info["device"], setting)
         written += 1
     return written
 
@@ -229,15 +264,21 @@ def evaluate_cell(cfg: dict, method: str, variant: str, condition: str, which: s
                   max_excerpts: int | None = None) -> pd.DataFrame:
     """Per-excerpt metrics of one (method, variant, condition) on a manifest.
 
-    Excerpts without a prediction file are skipped (and reported by the caller).
+    Excerpts without a prediction file are skipped, and so are predictions of an
+    activation method whose fingerprint does not match the current configuration
+    (stale outputs of an earlier model or config).
     """
+    current = (activation_fingerprint(cfg, method, variant)
+               if method in ACTIVATION_METHODS and variant in cfg["variants"] | {"default": {}}
+               else None)
     rows = []
     for ex in manifest_for(cfg, which, max_excerpts).itertuples(index=False):
         csv = paths.prediction_path(cfg, method, variant, condition, ex.excerpt_id, ".csv")
         if not csv.exists():
             continue
-        meta_path = csv.with_suffix(".json")
-        meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+        meta = _read_json(csv.with_suffix(".json")) or {}
+        if current is not None and meta.get("activation_fingerprint") != current:
+            continue
         m = excerpt_metrics(gt_for(cfg, condition, ex.excerpt_id), read_notes_csv(csv), cfg)
         rows.append({"excerpt_id": ex.excerpt_id, "condition": condition, "method": method,
                      "variant": variant, **m, "polyphony_bin": ex.polyphony_bin,

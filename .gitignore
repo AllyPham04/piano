@@ -25,6 +25,11 @@ data/soundfonts/
 data/hf_cache/
 data/sanity/
 
+# --- Machine-local run logs and tuned thresholds (final Kaggle results are added with git add -f) ---
+results/run_info.json
+results/run_log.jsonl
+results/thresholds/
+
 # --- Run outputs (large / regenerable) ---
 outputs/
 outputs_smoke/
