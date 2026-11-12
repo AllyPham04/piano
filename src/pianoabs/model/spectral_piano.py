@@ -199,15 +199,27 @@ class SpectralPiano(nn.Module):
         """β_r(f) = softplus(raw) ≥ 0, shape (F_r,)."""
         return F.softplus(self.beta_raw[str(n_fft)])
 
-    def spectrogram(self, n_fft: int, A: torch.Tensor | None = None) -> torch.Tensor:
-        """Ŝ_r = W_rᵀ A + β_r, shape (F_r, T). ``A`` defaults to softplus(Z)."""
-        A = self.activations() if A is None else A
-        return self.templates(n_fft).T @ A + self.noise_floor(n_fft)[:, None]
+    def spectrogram(self, n_fft: int, A: torch.Tensor | None = None,
+                    W: torch.Tensor | None = None) -> torch.Tensor:
+        """Ŝ_r = W_rᵀ A + β_r, shape (F_r, T).
 
-    def forward(self, A: torch.Tensor | None = None) -> dict[int, torch.Tensor]:
+        ``A`` defaults to softplus(Z); ``W`` defaults to freshly built templates
+        (pass precomputed ones when the physical parameters are frozen).
+        """
+        A = self.activations() if A is None else A
+        W = self.templates(n_fft) if W is None else W
+        return W.T @ A + self.noise_floor(n_fft)[:, None]
+
+    def forward(self, A: torch.Tensor | None = None,
+                templates: dict[int, torch.Tensor] | None = None) -> dict[int, torch.Tensor]:
         """Predicted magnitude spectrogram at every resolution: ``{n_fft: (F_r, T)}``."""
         A = self.activations() if A is None else A
-        return {n: self.spectrogram(n, A) for n in self.n_ffts}
+        templates = templates or {}
+        return {n: self.spectrogram(n, A, templates.get(n)) for n in self.n_ffts}
+
+    def physical_parameters(self) -> list[nn.Parameter]:
+        """The learnable physical parameters of stage 2 (δ, δ_p, a, c), if not frozen."""
+        return [p for p in (self.delta, self.detune_raw, self.a, self.c) if p.requires_grad]
 
     # ------------------------------------------------------------ export
 
@@ -222,4 +234,28 @@ class SpectralPiano(nn.Module):
                 "B_per_key": np.asarray(self.B().cpu()).tolist(),
                 "rho_per_key": np.asarray(self.rho().cpu()).tolist(),
                 "detune_cents_per_key": np.asarray(self.detune_cents().cpu()).tolist(),
+                "detune_raw": np.asarray(self.detune_raw.cpu()).tolist(),
+                "beta": {n: np.asarray(self.noise_floor(int(n)).cpu()).tolist()
+                         for n in self.beta_raw},
             }
+
+    @classmethod
+    def from_fitted(cls, cfg: dict, params: dict, activations: np.ndarray) -> "SpectralPiano":
+        """Rebuild a fitted model from its saved parameters (JSON) and activations (.npy).
+
+        Used to re-synthesise spectrograms (figures, intervention demo, viewer).
+        Older parameter files without ``beta`` fall back to the initial noise floor.
+        """
+        model = cls.from_config(cfg, activations.shape[1])
+        with torch.no_grad():
+            model.Z.copy_(torch.as_tensor(
+                np.log(np.expm1(np.clip(activations, 1e-12, None))), dtype=torch.float32))
+            model.delta.fill_(params["delta_cents"])
+            model.a.copy_(torch.tensor(params["a"]))
+            model.c.copy_(torch.tensor(params["c"]))
+            if "detune_raw" in params:
+                model.detune_raw.copy_(torch.tensor(params["detune_raw"]))
+            for n, beta in params.get("beta", {}).items():
+                model.beta_raw[n].copy_(torch.as_tensor(
+                    np.log(np.expm1(np.clip(beta, 1e-12, None))), dtype=torch.float32))
+        return model

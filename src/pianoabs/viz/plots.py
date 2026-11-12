@@ -71,6 +71,84 @@ def plot_gt_over_spec(mag: np.ndarray, sample_rate: int, n_fft: int, hop: int,
     return save_figure(fig, out_path)
 
 
+def _log_spec_panel(ax, mag: np.ndarray, sample_rate: int, n_fft: int, hop: int,
+                    gamma: float, title: str, fmin: float = 25.0, fmax: float = 4500.0) -> None:
+    import torch
+
+    spec = compress(torch.as_tensor(mag), gamma).numpy()
+    freqs = bin_frequencies(n_fft, sample_rate)
+    times = np.arange(spec.shape[1]) * hop / sample_rate
+    keep = (freqs >= fmin) & (freqs <= fmax)
+    ax.pcolormesh(times, freqs[keep], spec[keep], shading="nearest", cmap="magma")
+    ax.set_yscale("log")
+    ax.set_ylabel("Hz (log)")
+    ax.set_title(title, fontsize=9, loc="left")
+
+
+def plot_transcription_example(target_mag: np.ndarray, recon_mag: np.ndarray,
+                               gt: pd.DataFrame, pred: pd.DataFrame, out_path: str | Path,
+                               sample_rate: int = 16000, n_fft: int = 4096, hop: int = 256,
+                               gamma: float = 100.0, excerpt_s: float = 10.0,
+                               title: str = "") -> Path:
+    """Input spectrogram, model reconstruction, and GT vs predicted piano roll.
+
+    Piano roll colours (16 ms frames, 10 s window): green = TP (both), red = FP
+    (predicted only), blue = FN (GT only). Black dots: GT onsets; white crosses:
+    predicted onsets.
+    """
+    from matplotlib.colors import ListedColormap
+
+    from pianoabs.data.groundtruth import notes_to_roll
+
+    frame_s = hop / sample_rate
+    ref = notes_to_roll(gt, excerpt_s, frame_s)
+    est = notes_to_roll(pred[pred["onset_s"] < excerpt_s], excerpt_s, frame_s)
+    code = np.zeros(ref.shape, dtype=int)
+    code[ref & est], code[~ref & est], code[ref & ~est] = 1, 2, 3
+    pitches = np.concatenate([gt["pitch"].to_numpy(), pred["pitch"].to_numpy(), [60]])
+    lo, hi = int(pitches.min()) - 3, int(pitches.max()) + 3
+
+    fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True,
+                             gridspec_kw={"height_ratios": [1, 1, 1.2]})
+    _log_spec_panel(axes[0], target_mag, sample_rate, n_fft, hop, gamma, "input |S| (4096)")
+    _log_spec_panel(axes[1], recon_mag, sample_rate, n_fft, hop, gamma, "model reconstruction")
+    cmap = ListedColormap(["white", "#2ca02c", "#d62728", "#1f77b4"])
+    times = np.arange(ref.shape[1]) * frame_s
+    keys = np.arange(21, 109)
+    sel = (keys >= lo) & (keys <= hi)
+    axes[2].pcolormesh(times, keys[sel], code[sel], cmap=cmap, vmin=0, vmax=3, shading="nearest")
+    ev = gt[gt["evaluated"].astype(bool)] if "evaluated" in gt else gt
+    axes[2].plot(ev["onset_s"], ev["pitch"], "k.", ms=3)
+    p = pred[pred["onset_s"] < excerpt_s]
+    axes[2].plot(p["onset_s"], p["pitch"], "wx", ms=3, mew=0.8)
+    axes[2].set_ylabel("MIDI pitch")
+    axes[2].set_xlabel("time (s)")
+    axes[2].set_title("piano roll: green TP, red FP, blue FN; dots GT onsets, x predicted onsets",
+                      fontsize=9, loc="left")
+    for ax in axes[:2]:
+        ax.axvline(excerpt_s, color="white", ls=":", lw=1)
+    fig.suptitle(title)
+    return save_figure(fig, out_path)
+
+
+def plot_loss_curves(histories: dict[str, list[dict]], out_path: str | Path) -> Path:
+    """Total and reconstruction loss per step; dashed line marks the stage-2 start."""
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    for label, hist in histories.items():
+        steps = [h["step"] for h in hist]
+        for ax, key in zip(axes, ("total", "recon")):
+            ax.plot(steps, [h[key] for h in hist], lw=1, label=label)
+    stage2 = next((h["step"] for h in next(iter(histories.values())) if h["stage"] == 2), None)
+    for ax, key in zip(axes, ("total loss", "reconstruction L1 (compressed)")):
+        if stage2 is not None:
+            ax.axvline(stage2, color="0.5", ls="--", lw=0.8)
+        ax.set_yscale("log")
+        ax.set_xlabel("step")
+        ax.set_title(key, fontsize=9, loc="left")
+    axes[0].legend(fontsize=7)
+    return save_figure(fig, out_path)
+
+
 def plot_templates(templates: dict[str, np.ndarray], partials: dict[str, np.ndarray],
                    sample_rate: int, n_fft: int, pitch: int, out_path: str | Path,
                    fmax: float = 2000.0) -> Path:

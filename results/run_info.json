@@ -1,11 +1,11 @@
 {
-  "command": "prepare-data",
-  "timestamp_utc": "2026-11-11T21:57:34+00:00",
+  "command": "run nmf_harmonic/default/C1/test",
+  "timestamp_utc": "2026-11-12T13:05:50+00:00",
   "python": "3.11.18",
   "platform": "Windows-10-10.0.19045-SP0",
   "device": "cpu",
   "git": {
-    "commit": "a81764466e81f7acc4a4f2cc6bc117e51c11be2a",
+    "commit": "a534c6c5230ae35585bf2141e1aebd084cc2cab6",
     "dirty": true
   },
   "packages": {
@@ -152,7 +152,7 @@
     "c0": {
       "tau_s": 1.5,
       "beta": 0.0001,
-      "amplitude": null
+      "amplitude": 0.09
     },
     "notes": {
       "percentile": 99.0,
@@ -171,7 +171,12 @@
         0.05
       ],
       "theta_off_ratio": 0.5,
-      "reonset_rise_ratio": 1.0
+      "reonset_rise_ratio_grid": [
+        1.0,
+        0.5,
+        0.25,
+        0.1
+      ]
     },
     "nmf": {
       "n_fft": 2048,

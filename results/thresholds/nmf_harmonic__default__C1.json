@@ -1,0 +1,381 @@
+{
+  "method": "nmf_harmonic",
+  "variant": "default",
+  "condition": "C1",
+  "tuned_on": "val",
+  "excerpts": [
+    "val_000",
+    "val_001",
+    "val_002",
+    "val_003",
+    "val_004",
+    "val_005"
+  ],
+  "theta_on": 0.5,
+  "theta_rise": 0.05,
+  "reonset_rise_ratio": 1.0,
+  "theta_off": 0.25,
+  "val_mean_onset_F1": 0.35786970895607717,
+  "grid": [
+    {
+      "theta_on": 0.1,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.10855266699802207
+    },
+    {
+      "theta_on": 0.1,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.08394436453670577
+    },
+    {
+      "theta_on": 0.1,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.07258527227501575
+    },
+    {
+      "theta_on": 0.1,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.0632562825407657
+    },
+    {
+      "theta_on": 0.1,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.116656422012641
+    },
+    {
+      "theta_on": 0.1,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.09414843393313994
+    },
+    {
+      "theta_on": 0.1,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.08316864096467341
+    },
+    {
+      "theta_on": 0.1,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.07868419128774429
+    },
+    {
+      "theta_on": 0.1,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.15800897024229169
+    },
+    {
+      "theta_on": 0.1,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.1267527925767756
+    },
+    {
+      "theta_on": 0.1,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.1267527925767756
+    },
+    {
+      "theta_on": 0.1,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.1267527925767756
+    },
+    {
+      "theta_on": 0.2,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.1825025225043803
+    },
+    {
+      "theta_on": 0.2,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.15570483405105218
+    },
+    {
+      "theta_on": 0.2,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.1257383957550901
+    },
+    {
+      "theta_on": 0.2,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.1108349453835914
+    },
+    {
+      "theta_on": 0.2,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.18748759210784124
+    },
+    {
+      "theta_on": 0.2,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.16168577353016375
+    },
+    {
+      "theta_on": 0.2,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.13498795384328705
+    },
+    {
+      "theta_on": 0.2,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.11710269368027026
+    },
+    {
+      "theta_on": 0.2,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.20705679994587997
+    },
+    {
+      "theta_on": 0.2,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.18855025850633345
+    },
+    {
+      "theta_on": 0.2,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.15620592588807158
+    },
+    {
+      "theta_on": 0.2,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.15620592588807158
+    },
+    {
+      "theta_on": 0.3,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.2522104595230474
+    },
+    {
+      "theta_on": 0.3,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.21751951713577136
+    },
+    {
+      "theta_on": 0.3,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.18575268019106547
+    },
+    {
+      "theta_on": 0.3,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.15973042896885545
+    },
+    {
+      "theta_on": 0.3,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.2554998665908723
+    },
+    {
+      "theta_on": 0.3,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.2203560178230848
+    },
+    {
+      "theta_on": 0.3,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.19109334281894697
+    },
+    {
+      "theta_on": 0.3,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.16754760063560337
+    },
+    {
+      "theta_on": 0.3,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.2668220864622795
+    },
+    {
+      "theta_on": 0.3,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.23567840886297717
+    },
+    {
+      "theta_on": 0.3,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.20686316884096168
+    },
+    {
+      "theta_on": 0.3,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.19249928336001285
+    },
+    {
+      "theta_on": 0.4,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.3034831506102446
+    },
+    {
+      "theta_on": 0.4,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.2667700956378011
+    },
+    {
+      "theta_on": 0.4,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.236275466432096
+    },
+    {
+      "theta_on": 0.4,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.19706972515735202
+    },
+    {
+      "theta_on": 0.4,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.30593879753577274
+    },
+    {
+      "theta_on": 0.4,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.272479224970029
+    },
+    {
+      "theta_on": 0.4,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.2409968762990852
+    },
+    {
+      "theta_on": 0.4,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.2055732277425796
+    },
+    {
+      "theta_on": 0.4,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.3150196370399122
+    },
+    {
+      "theta_on": 0.4,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.2867593039552863
+    },
+    {
+      "theta_on": 0.4,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.2596483279108678
+    },
+    {
+      "theta_on": 0.4,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.22304475246510488
+    },
+    {
+      "theta_on": 0.5,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.348205193903637
+    },
+    {
+      "theta_on": 0.5,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.3113459055755845
+    },
+    {
+      "theta_on": 0.5,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.2756938295188968
+    },
+    {
+      "theta_on": 0.5,
+      "theta_rise": 0.0,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.2301371983918776
+    },
+    {
+      "theta_on": 0.5,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.348490823998878
+    },
+    {
+      "theta_on": 0.5,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.3149355910178297
+    },
+    {
+      "theta_on": 0.5,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.2799919582884333
+    },
+    {
+      "theta_on": 0.5,
+      "theta_rise": 0.02,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.23748125137268997
+    },
+    {
+      "theta_on": 0.5,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 1.0,
+      "mean_onset_F1": 0.35786970895607717
+    },
+    {
+      "theta_on": 0.5,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.5,
+      "mean_onset_F1": 0.3277007127536291
+    },
+    {
+      "theta_on": 0.5,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.25,
+      "mean_onset_F1": 0.29662479480095233
+    },
+    {
+      "theta_on": 0.5,
+      "theta_rise": 0.05,
+      "reonset_rise_ratio": 0.1,
+      "mean_onset_F1": 0.24904208758328225
+    }
+  ]
+}

@@ -198,6 +198,22 @@ def test_gradient_points_towards_true_tuning():
     assert m.delta.grad.item() < 0  # gradient descent raises delta towards 0
 
 
+def test_from_fitted_roundtrip(default_cfg):
+    import json
+
+    m = SpectralPiano.from_config(default_cfg, n_frames=5)
+    with torch.no_grad():
+        m.Z.normal_()
+        m.delta.fill_(3.0)
+        m.a.copy_(torch.tensor([-7.5, 0.4, 0.1]))
+        m.beta_raw["2048"].fill_(-6.0)
+    params = json.loads(json.dumps(m.physical_params()))  # through JSON, as on disk
+    A = m.activations().detach().numpy()
+    rebuilt = SpectralPiano.from_fitted(default_cfg, params, A)
+    for n in m.n_ffts:
+        assert torch.allclose(rebuilt()[n], m()[n].detach(), rtol=1e-4, atol=1e-7)
+
+
 # ---------------------------------------------------------------- C0
 
 def test_gt_activation_roll_decays_and_stops():

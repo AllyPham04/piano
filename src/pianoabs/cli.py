@@ -71,6 +71,62 @@ def cmd_sanity_plot(cfg: dict, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tune(cfg: dict, args: argparse.Namespace) -> int:
+    """Fit the validation excerpts (if needed) and grid-search the note thresholds."""
+    from pianoabs.experiments import tune_thresholds
+
+    variant = _variant_for(args)
+    write_run_info(cfg, command=f"tune {args.method}/{variant}/{args.condition}")
+    res = tune_thresholds(cfg, args.method, variant, args.condition,
+                          cfg["run"]["max_excerpts"])
+    print(f"best on validation ({len(res['excerpts'])} excerpts): theta_on={res['theta_on']} "
+          f"theta_rise={res['theta_rise']} reonset_ratio={res['reonset_rise_ratio']} "
+          f"mean onset F1={res['val_mean_onset_F1']:.4f}")
+    return 0
+
+
+def _variant_for(args: argparse.Namespace) -> str:
+    """Baselines have a single variant called 'default'."""
+    return args.variant if args.method == "ours" else "default"
+
+
+def cmd_run(cfg: dict, args: argparse.Namespace) -> int:
+    """Activations + predictions for all excerpts of a manifest; print onset scores."""
+    from pianoabs.experiments import evaluate_cell, run_method
+
+    which = args.manifest or cfg["run"]["manifest"]
+    max_excerpts = cfg["run"]["max_excerpts"]
+    variant = _variant_for(args)
+    write_run_info(cfg, command=f"run {args.method}/{variant}/{args.condition}/{which}")
+    n = run_method(cfg, args.method, variant, args.condition, which, max_excerpts)
+    scores = evaluate_cell(cfg, args.method, variant, args.condition, which, max_excerpts)
+    print(f"wrote {n} new prediction files")
+    cols = ["excerpt_id", "onset_P", "onset_R", "onset_F1", "frame_F1", "n_ref", "n_pred"]
+    print(scores[cols].round(4).to_string(index=False))
+    print(f"mean onset F1 ({args.method}/{variant}/{args.condition}, {which}, "
+          f"{len(scores)} excerpts): {scores['onset_F1'].mean():.4f}")
+    return 0
+
+
+def cmd_evaluate(cfg: dict, args: argparse.Namespace) -> int:
+    """Metrics for every prediction folder + summary (bootstrap CIs) + Wilcoxon tests."""
+    from pianoabs.experiments import evaluate_all
+
+    which = args.manifest or cfg["run"]["manifest"]
+    write_run_info(cfg, command=f"evaluate {which}")
+    res = evaluate_all(cfg, which, cfg["run"]["max_excerpts"])
+    per, summary = res["per_excerpt"], res["summary"]
+    print(f"{len(per)} rows in metrics_per_excerpt.csv")
+    if len(summary):
+        f1 = summary[summary.metric == "onset_F1"]
+        print(f1[["condition", "method", "variant", "n", "mean", "ci_low", "ci_high"]]
+              .round(4).to_string(index=False))
+    if len(res["stats"]):
+        print(res["stats"][["comparison", "condition", "metric", "n_pairs", "median_diff",
+                            "p_value"]].to_string(index=False))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="pianoabs", description=__doc__.split("\n")[0])
     common = argparse.ArgumentParser(add_help=False)
@@ -107,17 +163,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--condition", default="C1")
     p.add_argument("--split", default="val", choices=["val"],
                    help="thresholds are only ever tuned on validation")
-    p.set_defaults(func=_not_implemented("M4/M5"))
+    p.set_defaults(func=cmd_tune)
 
     p = sub.add_parser("run", parents=[common], help="transcribe all excerpts of a condition")
     p.add_argument("--method", default="ours")
     p.add_argument("--variant", default="full")
     p.add_argument("--condition", default="C1")
-    p.set_defaults(func=_not_implemented("M4"))
+    p.add_argument("--manifest", choices=["val", "test"], default=None,
+                   help="default: run.manifest from the config")
+    p.set_defaults(func=cmd_run)
 
     p = sub.add_parser("evaluate", parents=[common], help="metrics, summary, statistics")
-    p.add_argument("--all", action="store_true")
-    p.set_defaults(func=_not_implemented("M5"))
+    p.add_argument("--all", action="store_true", help="(default) evaluate every prediction folder")
+    p.add_argument("--manifest", choices=["val", "test"], default=None,
+                   help="default: run.manifest from the config")
+    p.set_defaults(func=cmd_evaluate)
 
     p = sub.add_parser("figures", parents=[common], help="figures of README §8.4")
     p.set_defaults(func=_not_implemented("M9"))
